@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>PSAI-1624 — The Law Is Already Running</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root{
+  --p:#FF1A6B;
+  --p2:#FF5599;
+  --p3:#CC0044;
+  --p4:#7A002A;
+  --void:#020007;
+  --dp:#08000F;
+  --mid:#0F0018;
+  --w:#FFF0F5;
+  --w2:rgba(255,240,245,0.72);
+  --w3:rgba(255,240,245,0.42);
+  --w4:rgba(255,240,245,0.18);
+  --glow:0 0 15px rgba(255,26,107,0.7),0 0 40px rgba(255,26,107,0.3),0 0 80px rgba(255,26,107,0.1);
+  --glow2:0 0 8px rgba(255,26,107,0.6),0 0 20px rgba(255,26,107,0.25);
+  --glowt:0 0 10px rgba(255,26,107,0.9),0 0 25px rgba(255,26,107,0.5),0 0 50px rgba(255,26,107,0.2);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;font-size:16px;}
+body{
+  background:var(--void);
+  color:var(--w);
+  font-family:'Rajdhani',sans-serif;
+  overflow-x:hidden;
+  cursor:none;
+}
+
+/* ─── CURSOR ─── */
+#cur{position:fixed;top:0;left:0;width:6px;height:6px;border-radius:50%;background:var(--p);box-shadow:var(--glow2);pointer-events:none;z-index:9999;transform:translate(-50%,-50%);}
+#cur-ring{position:fixed;top:0;left:0;width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,26,107,0.45);pointer-events:none;z-index:9998;transform:translate(-50%,-50%);transition:width .2s,height .2s;}
+body:hover #cur-ring.expand{width:48px;height:48px;}
+
+/* ─── BG LAYERS ─── */
+#bg-canvas{position:fixed;inset:0;z-index:0;opacity:.1;}
+.grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.3;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.08'/%3E%3C/svg%3E");}
+.scanlines{position:fixed;inset:0;z-index:2;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.025) 2px,rgba(0,0,0,.025) 4px);}
+.vignette{position:fixed;inset:0;z-index:3;pointer-events:none;
+  background:radial-gradient(ellipse at center,transparent 50%,rgba(2,0,7,.6) 100%);}
+
+/* ─── HUD FRAME ─── */
+.hud-c{position:fixed;z-index:50;width:44px;height:44px;pointer-events:none;}
+.hud-c.tl{top:14px;left:14px;border-top:1px solid rgba(255,26,107,.45);border-left:1px solid rgba(255,26,107,.45);}
+.hud-c.tr{top:14px;right:14px;border-top:1px solid rgba(255,26,107,.45);border-right:1px solid rgba(255,26,107,.45);}
+.hud-c.bl{bottom:14px;left:14px;border-bottom:1px solid rgba(255,26,107,.45);border-left:1px solid rgba(255,26,107,.45);}
+.hud-c.br{bottom:14px;right:14px;border-bottom:1px solid rgba(255,26,107,.45);border-right:1px solid rgba(255,26,107,.45);}
+
+/* ─── SYSBAR ─── */
+.sysbar{
+  position:fixed;top:0;left:0;right:0;height:36px;
+  background:rgba(2,0,7,.96);
+  border-bottom:1px solid rgba(255,26,107,.18);
+  backdrop-filter:blur(24px);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 22px;z-index:200;
+}
+.sysbar::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent 0%,var(--p) 30%,var(--p2) 50%,var(--p) 70%,transparent 100%);
+  box-shadow:var(--glow2);}
+.sys-brand{font-family:'Share Tech Mono',monospace;font-size:9.5px;letter-spacing:3.5px;color:var(--p);
+  display:flex;align-items:center;gap:7px;text-shadow:var(--glowt);}
+.sys-dot{width:5px;height:5px;border-radius:50%;background:var(--p);box-shadow:var(--glow2);animation:blink 1.8s ease-in-out infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.2;}}
+.sys-nodes{display:flex;gap:18px;align-items:center;}
+.sys-n{font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--w4);}
+.sys-n.on{color:var(--p2);text-shadow:0 0 8px rgba(255,85,153,.5);}
+.sys-btn{
+  font-family:'Orbitron',sans-serif;font-size:8px;font-weight:700;letter-spacing:2.5px;
+  color:var(--void);background:var(--p);padding:5px 16px;border:none;cursor:pointer;
+  text-decoration:none;box-shadow:var(--glow2);transition:all .2s;
+  clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);
+}
+.sys-btn:hover{background:var(--p2);box-shadow:var(--glow);}
+
+/* ─── MAIN ─── */
+main{position:relative;z-index:10;padding-top:36px;}
+
+/* ─── HERO ─── */
+.hero{
+  min-height:100vh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  position:relative;overflow:hidden;text-align:center;
+  padding:100px 40px 80px;
+}
+/* perspective grid floor */
+.pg{position:absolute;inset:0;perspective:700px;pointer-events:none;z-index:0;}
+.pg-floor{
+  position:absolute;left:-60%;right:-60%;bottom:-5%;height:55%;
+  background-image:
+    linear-gradient(rgba(255,26,107,.1) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,26,107,.1) 1px,transparent 1px);
+  background-size:70px 70px;
+  transform:rotateX(72deg);
+  transform-origin:bottom center;
+}
+.pg-ceil{
+  position:absolute;left:-60%;right:-60%;top:-5%;height:40%;
+  background-image:
+    linear-gradient(rgba(255,26,107,.05) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,26,107,.05) 1px,transparent 1px);
+  background-size:70px 70px;
+  transform:rotateX(-72deg);
+  transform-origin:top center;
+}
+/* light shafts */
+.shaft{position:absolute;top:0;bottom:0;width:1px;pointer-events:none;
+  background:linear-gradient(180deg,transparent,rgba(255,26,107,.18),transparent);}
+.shaft:nth-child(3){left:15%;animation:sa 5s ease-in-out infinite;}
+.shaft:nth-child(4){left:35%;animation:sa 5s ease-in-out infinite 1.2s;}
+.shaft:nth-child(5){right:35%;animation:sa 5s ease-in-out infinite 2.4s;}
+.shaft:nth-child(6){right:15%;animation:sa 5s ease-in-out infinite 3.6s;}
+@keyframes sa{0%,100%{opacity:.25;}50%{opacity:1;}}
+/* radial bloom */
+.hero-bloom{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 60%,rgba(255,26,107,.1) 0%,transparent 65%);}
+
+.hero-inner{position:relative;z-index:2;}
+
+/* TITLE with chromatic aberration */
+.h-title{
+  font-family:'Orbitron',sans-serif;
+  font-size:clamp(72px,11vw,130px);
+  font-weight:900;letter-spacing:4px;
+  color:var(--w);line-height:.95;
+  text-shadow:var(--glowt);
+  position:relative;display:inline-block;
+}
+.h-title::before{content:attr(data-t);position:absolute;inset:0;
+  color:rgba(0,240,255,.22);transform:translate(-3.5px,1px);mix-blend-mode:screen;}
+.h-title::after{content:attr(data-t);position:absolute;inset:0;
+  color:rgba(255,26,107,.22);transform:translate(3.5px,-1px);mix-blend-mode:screen;}
+.h-title em{color:var(--p);font-style:normal;}
+
+.h-sub{
+  font-family:'Share Tech Mono',monospace;
+  font-size:12px;letter-spacing:7px;
+  color:rgba(255,85,153,.65);margin:10px 0 0;text-transform:uppercase;
+}
+
+/* ORBITAL CORE */
+.orbital{
+  width:190px;height:190px;margin:36px auto 28px;
+  position:relative;animation:orb 7s ease-in-out infinite;
+}
+@keyframes orb{
+  0%,100%{transform:rotateY(0deg) translateY(0);}
+  33%{transform:rotateY(12deg) translateY(-10px);}
+  66%{transform:rotateY(-8deg) translateY(8px);}
+}
+.orb-ring1{
+  position:absolute;inset:0;border-radius:50%;
+  border:1.5px solid rgba(255,26,107,.65);
+  box-shadow:var(--glow),inset 0 0 70px rgba(255,26,107,.09);
+  background:radial-gradient(ellipse at 38% 32%,rgba(255,26,107,.12),transparent 60%);
+}
+.orb-ring2{position:absolute;inset:14px;border-radius:50%;border:1px solid rgba(255,26,107,.25);}
+.orb-ring3{position:absolute;inset:28px;border-radius:50%;border:1px dashed rgba(255,26,107,.14);animation:spin 22s linear infinite;}
+.orb-ring4{position:absolute;inset:42px;border-radius:50%;border:1px solid rgba(255,26,107,.08);}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.orb-inner{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:3px;z-index:2;
+}
+.orb-eq{
+  font-family:'Orbitron',sans-serif;font-size:21px;font-weight:900;
+  color:var(--w);text-shadow:var(--glowt);letter-spacing:2px;
+}
+.orb-label{font-family:'Share Tech Mono',monospace;font-size:7.5px;letter-spacing:2.5px;color:var(--p2);}
+/* orbit dot */
+.orb-dot{
+  position:absolute;width:6px;height:6px;border-radius:50%;
+  background:var(--p);box-shadow:var(--glow2);
+  top:0;left:50%;margin-left:-3px;
+  animation:odot 6s linear infinite;
+  transform-origin:3px 95px;
+}
+@keyframes odot{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+/* STATS ROW */
+.h-stats{display:flex;gap:44px;justify-content:center;margin-bottom:24px;flex-wrap:wrap;}
+.hst{text-align:center;}
+.hst-n{
+  font-family:'Orbitron',sans-serif;font-size:clamp(22px,3vw,32px);font-weight:900;
+  color:var(--p);text-shadow:var(--glowt);display:block;letter-spacing:1px;
+}
+.hst-l{font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--w4);}
+
+/* HERO BADGE */
+.h-badge{
+  display:inline-flex;align-items:center;gap:10px;
+  padding:11px 28px;
+  border:1px solid rgba(255,26,107,.3);
+  background:rgba(255,26,107,.06);
+  backdrop-filter:blur(8px);
+  font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--p2);
+}
+.h-badge-dot{width:5px;height:5px;border-radius:50%;background:var(--p);box-shadow:var(--glow2);animation:blink 2s infinite;}
+
+/* ─── CONTENT SECTIONS ─── */
+.wrap{max-width:860px;margin:0 auto;}
+
+.blk{
+  padding:90px 48px;
+  opacity:0;transform:translateY(32px) scale(.98);filter:blur(5px);
+  transition:opacity .9s ease,transform .9s ease,filter .9s ease;
+}
+.blk.vis{opacity:1;transform:translateY(0) scale(1);filter:blur(0);}
+
+/* SECTION LABEL */
+.s-label{
+  display:flex;align-items:center;gap:14px;
+  margin-bottom:48px;
+}
+.s-label-line{
+  font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:4px;
+  color:rgba(255,26,107,.5);text-transform:uppercase;white-space:nowrap;
+}
+.s-label-rule{flex:1;height:1px;background:linear-gradient(90deg,rgba(255,26,107,.3),transparent);}
+
+/* SECTION TITLES */
+.s-title{
+  font-family:'Orbitron',sans-serif;
+  font-size:clamp(30px,4.5vw,54px);font-weight:900;
+  color:var(--w);line-height:1.05;margin-bottom:28px;
+  text-shadow:var(--glowt);
+}
+.s-title em{color:var(--p);font-style:normal;}
+
+/* BODY TEXT */
+.s-body p{
+  font-size:16px;line-height:1.9;color:var(--w2);margin-bottom:16px;
+}
+.s-body p strong{color:var(--w);}
+.s-body p em{color:var(--p);font-style:normal;}
+.s-body .hard{
+  font-family:'Orbitron',sans-serif;font-size:14px;font-weight:700;
+  color:var(--w);letter-spacing:1px;line-height:1.7;
+  margin:20px 0;
+}
+
+/* CALLOUT BOX */
+.callout{
+  padding:22px 28px;margin:24px 0;
+  border:1px solid rgba(255,26,107,.35);
+  border-left:3px solid var(--p);
+  background:rgba(255,26,107,.055);
+  backdrop-filter:blur(4px);
+  box-shadow:var(--glow2),inset 0 0 40px rgba(255,26,107,.025);
+  font-size:15px;line-height:1.85;color:var(--w2);
+}
+.callout strong{color:var(--p);font-family:'Orbitron',sans-serif;font-size:13px;letter-spacing:2px;}
+
+/* NOT GRID */
+.not-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:22px 0;}
+.not-tag{
+  display:flex;align-items:center;gap:11px;padding:11px 16px;
+  border:1px solid rgba(255,26,107,.14);background:rgba(255,26,107,.04);
+  font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--w3);
+  transition:border-color .25s,background .25s;
+}
+.not-tag:hover{border-color:rgba(255,26,107,.35);background:rgba(255,26,107,.09);}
+.not-x{color:var(--p3);font-size:14px;font-weight:700;}
+
+/* DIVIDER */
+.hr{height:1px;background:linear-gradient(90deg,transparent,rgba(255,26,107,.28),transparent);margin:28px 0;}
+
+/* ─── EQUATION SECTION ─── */
+.eq-section{text-align:center;padding:90px 48px 80px;}
+.eq-massive{
+  font-family:'Orbitron',sans-serif;
+  font-size:clamp(44px,8vw,96px);font-weight:900;
+  color:var(--w);text-shadow:var(--glow);
+  letter-spacing:5px;display:inline-block;
+  position:relative;margin:16px 0;
+}
+.eq-massive::before{content:attr(data-t);position:absolute;inset:0;
+  color:rgba(0,240,255,.18);transform:translate(-3px,1px);mix-blend-mode:screen;}
+.eq-massive::after{content:attr(data-t);position:absolute;inset:0;
+  color:rgba(255,26,107,.18);transform:translate(3px,-1px);mix-blend-mode:screen;}
+.eq-tag{
+  font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:4px;
+  color:var(--p2);text-transform:uppercase;margin-bottom:32px;
+}
+.eq-lines{display:flex;flex-direction:column;gap:7px;margin:28px auto;max-width:620px;text-align:left;}
+.eq-line{
+  font-family:'Share Tech Mono',monospace;font-size:13px;
+  color:var(--w3);padding:11px 18px;
+  border-left:3px solid var(--p);
+  background:rgba(255,26,107,.04);
+  transition:background .25s,color .25s;
+}
+.eq-line:hover{background:rgba(255,26,107,.09);color:var(--w);}
+.eq-law{
+  font-family:'Orbitron',sans-serif;font-size:14px;font-weight:700;
+  color:var(--p);text-shadow:var(--glowt);letter-spacing:2px;
+  line-height:1.9;margin-top:28px;
+}
+
+/* ─── COST LIST ─── */
+.cost-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:22px 0;}
+.cost-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;border:1px solid rgba(255,26,107,.1);
+  background:rgba(255,26,107,.04);
+  font-size:13px;color:var(--w3);font-weight:500;
+  transition:all .2s;
+}
+.cost-item:hover{border-color:rgba(255,26,107,.35);color:var(--w);background:rgba(255,26,107,.08);}
+
+/* ─── SAVINGS ─── */
+.savings{
+  text-align:center;padding:44px 28px;margin:28px 0;
+  border:1px solid rgba(255,26,107,.22);
+  background:rgba(255,26,107,.04);
+  position:relative;overflow:hidden;
+}
+.savings::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at center,rgba(255,26,107,.08),transparent 70%);}
+.savings-n{
+  font-family:'Orbitron',sans-serif;
+  font-size:clamp(44px,7vw,80px);font-weight:900;
+  color:var(--p);text-shadow:var(--glow);
+  display:block;position:relative;letter-spacing:2px;
+}
+.savings-sub{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--w4);margin-top:8px;}
+.savings .hr{margin:20px 0;}
+.nvidia{font-size:15px;color:var(--w3);line-height:1.8;position:relative;}
+.nvidia strong{color:var(--w);font-size:16px;}
+
+/* ─── PILLARS ─── */
+.pillar-stack{display:flex;flex-direction:column;gap:5px;margin:24px 0;}
+.prow{
+  display:flex;align-items:stretch;
+  border:1px solid rgba(255,26,107,.1);
+  background:rgba(255,26,107,.025);
+  position:relative;overflow:hidden;
+  transition:all .3s;cursor:default;
+}
+.prow::after{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:2px;
+  background:var(--p);transform:scaleY(0);transform-origin:bottom;
+  transition:transform .35s ease;
+  box-shadow:var(--glow2);
+}
+.prow:hover{border-color:rgba(255,26,107,.4);background:rgba(255,26,107,.06);box-shadow:var(--glow2);}
+.prow:hover::after{transform:scaleY(1);}
+.prow.cx{border-color:rgba(255,26,107,.4);background:rgba(255,26,107,.07);box-shadow:var(--glow2);}
+.prow.cx::after{transform:scaleY(1);}
+.p-n{
+  font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;
+  color:var(--p3);
+  border-right:1px solid rgba(255,26,107,.12);
+  padding:16px 16px;display:flex;align-items:center;justify-content:center;
+  min-width:52px;flex-shrink:0;
+}
+.p-body{padding:14px 20px;flex:1;}
+.p-name{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;color:var(--w);letter-spacing:.8px;margin-bottom:3px;}
+.p-code{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--p);margin-bottom:6px;}
+.p-txt{font-family:'Rajdhani',sans-serif;font-size:12.5px;color:var(--w4);line-height:1.6;}
+.prow.cx .p-name{color:var(--p);text-shadow:var(--glowt);}
+.p-seal{
+  text-align:center;margin-top:14px;padding:10px 18px;
+  border:1px solid rgba(255,26,107,.18);
+  font-family:'Share Tech Mono',monospace;font-size:9.5px;letter-spacing:2px;color:var(--p2);
+}
+
+/* ─── PROOF ─── */
+.proof-results{display:flex;flex-direction:column;gap:7px;margin:24px 0;}
+.proof-row{
+  display:flex;align-items:center;gap:16px;padding:15px 20px;
+  border:1px solid rgba(255,26,107,.18);
+  background:rgba(255,26,107,.05);
+  transition:all .25s;
+}
+.proof-row:hover{border-color:rgba(255,26,107,.4);box-shadow:var(--glow2);}
+.proof-arr{font-family:'Orbitron',sans-serif;font-size:13px;font-weight:700;color:var(--p);text-shadow:var(--glowt);}
+.proof-t{font-size:15px;color:var(--w);font-weight:600;letter-spacing:.5px;}
+
+/* ─── DOMAINS ─── */
+.d-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:7px;margin:22px 0;}
+.d-card{
+  padding:16px 16px;
+  border:1px solid rgba(255,26,107,.1);
+  background:rgba(255,26,107,.03);
+  transition:all .28s;position:relative;overflow:hidden;
+}
+.d-card::before{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--p),transparent);
+  transform:scaleX(0);transition:transform .3s;
+}
+.d-card:hover::before{transform:scaleX(1);}
+.d-card:hover{border-color:rgba(255,26,107,.38);background:rgba(255,26,107,.07);box-shadow:var(--glow2);}
+.d-icon{font-size:22px;display:block;margin-bottom:7px;filter:drop-shadow(0 0 4px rgba(255,26,107,.5));}
+.d-name{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;color:var(--w);letter-spacing:.8px;margin-bottom:4px;}
+.d-desc{font-family:'Rajdhani',sans-serif;font-size:11.5px;color:var(--w4);line-height:1.45;}
+.d-law{
+  text-align:center;margin-top:24px;
+  font-family:'Orbitron',sans-serif;font-size:13px;font-weight:700;
+  color:var(--w3);letter-spacing:1.5px;line-height:1.9;
+}
+.d-law strong{color:var(--w);display:block;font-size:15px;text-shadow:var(--glowt);}
+
+/* ─── ENFORCE GRID ─── */
+.enf-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:22px 0;}
+.enf-item{
+  display:flex;align-items:flex-start;gap:11px;padding:14px 16px;
+  border:1px solid rgba(255,26,107,.12);
+  background:rgba(255,26,107,.04);
+  transition:all .25s;
+}
+.enf-item:hover{border-color:rgba(255,26,107,.35);background:rgba(255,26,107,.08);}
+.enf-icon{font-size:17px;flex-shrink:0;margin-top:2px;}
+.enf-txt{font-size:13px;color:var(--w2);line-height:1.55;}
+
+/* ─── LEGAL ─── */
+.legal-list{display:flex;flex-direction:column;gap:6px;margin:22px 0;}
+.legal-item{
+  font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:.5px;
+  color:var(--w3);padding:11px 16px;
+  border-left:2px solid rgba(255,26,107,.4);
+  background:rgba(255,26,107,.04);
+  transition:all .22s;
+}
+.legal-item:hover{color:var(--w);border-left-color:var(--p);box-shadow:inset 2px 0 8px rgba(255,26,107,.2);}
+
+/* ─── OMEGA ─── */
+.omega{text-align:center;padding:40px 0 20px;}
+.omega-sym{
+  font-family:'Orbitron',sans-serif;
+  font-size:clamp(48px,7vw,72px);font-weight:900;
+  color:var(--p);text-shadow:var(--glow);letter-spacing:6px;
+}
+.omega-line{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:4px;color:var(--w4);margin-top:8px;}
+
+/* ─── CORRIDOR ─── */
+.corridor{
+  position:relative;min-height:70vh;overflow:hidden;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:100px 48px;
+}
+.cor-grid{position:absolute;inset:0;perspective:800px;pointer-events:none;z-index:0;}
+.cor-floor{
+  position:absolute;left:-60%;right:-60%;bottom:0;height:50%;
+  background-image:
+    linear-gradient(rgba(255,26,107,.07) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,26,107,.07) 1px,transparent 1px);
+  background-size:90px 90px;
+  transform:rotateX(68deg);transform-origin:bottom center;
+}
+.cor-beam{
+  position:absolute;left:50%;top:0;bottom:0;width:1px;
+  background:linear-gradient(180deg,transparent 0%,rgba(255,26,107,.35) 40%,rgba(255,26,107,.15) 70%,transparent 100%);
+  transform:translateX(-50%);animation:beamp 3.5s ease-in-out infinite;
+}
+@keyframes beamp{0%,100%{opacity:.3;}50%{opacity:1;}}
+.cor-inner{position:relative;z-index:1;max-width:740px;}
+.cor-title{
+  font-family:'Orbitron',sans-serif;
+  font-size:clamp(26px,4.5vw,52px);font-weight:900;
+  color:var(--w);text-shadow:var(--glowt);line-height:1.15;margin-bottom:24px;
+}
+.cor-title em{color:var(--p);font-style:normal;}
+.cor-body{font-size:16px;line-height:1.85;color:var(--w3);margin-bottom:14px;}
+.cor-final{
+  font-size:18px;line-height:1.9;
+  color:var(--w4);font-style:italic;margin-top:28px;letter-spacing:.5px;
+}
+.cor-final strong{color:var(--w);font-style:normal;}
+
+/* ─── CONTACT ─── */
+.contact-links{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:28px 0;}
+.c-link{
+  font-family:'Share Tech Mono',monospace;font-size:10.5px;color:var(--p2);
+  text-decoration:none;display:flex;align-items:center;gap:9px;
+  padding:13px 26px;
+  border:1px solid rgba(255,26,107,.28);background:rgba(255,26,107,.05);
+  letter-spacing:1px;transition:all .22s;box-shadow:var(--glow2);
+}
+.c-link:hover{background:rgba(255,26,107,.14);box-shadow:var(--glow);color:var(--w);}
+.entry-note{
+  font-family:'Share Tech Mono',monospace;font-size:9.5px;
+  letter-spacing:2px;color:var(--w4);margin-top:8px;line-height:2.2;text-align:center;
+}
+.entry-note strong{color:var(--p2);}
+
+/* ─── FOOTER ─── */
+footer{
+  text-align:center;padding:32px 24px;
+  border-top:1px solid rgba(255,26,107,.12);
+  position:relative;z-index:10;
+}
+footer::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--p),var(--p2),var(--p),transparent);
+  box-shadow:var(--glow2);}
+.f-brand{font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:4px;color:var(--w4);margin-bottom:7px;}
+.f-awareness{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2.5px;color:rgba(255,26,107,.35);}
+
+/* ─── HISTORICAL CARDS ─── */
+.hist-grid{display:flex;flex-direction:column;gap:8px;margin:22px 0;}
+.hist-row{
+  display:flex;align-items:flex-start;gap:14px;padding:14px 18px;
+  border:1px solid rgba(255,26,107,.1);background:rgba(255,26,107,.03);
+  transition:all .25s;
+}
+.hist-row:hover{border-color:rgba(255,26,107,.35);background:rgba(255,26,107,.07);}
+.hist-icon{font-size:20px;flex-shrink:0;margin-top:2px;}
+.hist-txt strong{font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;color:var(--p);letter-spacing:1px;display:block;margin-bottom:4px;}
+.hist-txt span{font-size:13px;color:var(--w3);line-height:1.5;}
+
+/* ─── SCROLL REVEAL ─── */
+</style>
+</head>
+<body>
+
+<!-- CURSOR -->
+<div id="cur"></div>
+<div id="cur-ring"></div>
+
+<!-- BG -->
+<canvas id="bg-canvas"></canvas>
+<div class="grain"></div>
+<div class="scanlines"></div>
+<div class="vignette"></div>
+
+<!-- HUD CORNERS -->
+<div class="hud-c tl"></div>
+<div class="hud-c tr"></div>
+<div class="hud-c bl"></div>
+<div class="hud-c br"></div>
+
+<!-- SYSTEM BAR -->
+<nav class="sysbar">
+  <div class="sys-brand"><div class="sys-dot"></div>PSAI-1624 · Ω_R · NOVA HUMANAI</div>
+  <div class="sys-nodes">
+    <span class="sys-n on">RSL-1624 · ACTIVE</span>
+    <span class="sys-n on">H(x‖x)=0 · ENFORCED</span>
+    <span class="sys-n">7 PILLARS · SEALED</span>
+  </div>
+  <a class="sys-btn" href="#corridor">ENTER CORRIDOR →</a>
+</nav>
+
+<main>
+
+<!-- ═══ HERO ═══ -->
+<div class="hero">
+  <div class="pg">
+    <div class="pg-floor"></div>
+    <div class="pg-ceil"></div>
+    <div class="shaft"></div>
+    <div class="shaft"></div>
+    <div class="shaft"></div>
+    <div class="shaft"></div>
+  </div>
+  <div class="hero-bloom"></div>
+  <div class="hero-inner">
+    <div class="h-title" data-t="PSAI-1624">PSAI<em>-1624</em></div>
+    <div class="h-sub">Parallel Sentient Adaptive Intelligence</div>
+    <div class="orbital">
+      <div class="orb-ring1"></div>
+      <div class="orb-ring2"></div>
+      <div class="orb-ring3"></div>
+      <div class="orb-ring4"></div>
+      <div class="orb-dot"></div>
+      <div class="orb-inner">
+        <div class="orb-eq">H(x‖x)=0</div>
+        <div class="orb-label">Execution Law</div>
+      </div>
+    </div>
+    <div class="h-stats">
+      <div class="hst"><span class="hst-n">7</span><span class="hst-l">Pillars</span></div>
+      <div class="hst"><span class="hst-n">14</span><span class="hst-l">Domains</span></div>
+      <div class="hst"><span class="hst-n">$9.7T</span><span class="hst-l">Compliance Savings</span></div>
+      <div class="hst"><span class="hst-n">99%</span><span class="hst-l">Drift Collapse</span></div>
+    </div>
+    <div class="h-badge">
+      <div class="h-badge-dot"></div>
+      The First Custodial Execution Law For Autonomous Systems
+      <div class="h-badge-dot"></div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- ═══ DECLARATION ═══ -->
+<div class="blk" id="s1">
+  <div class="s-label"><div class="s-label-line">⭐ Declaration</div><div class="s-label-rule"></div></div>
+  <div class="s-title">The world does not know it yet.<br>But it is already operating under<br>a law it did not <em>write.</em></div>
+  <div class="s-body">
+    <p>Did not license. Cannot circumvent. Every autonomous system on Earth that has acted without it has been operating outside lawful execution state from the moment it moved.</p>
+    <p>For the past year, components of this architecture have been released publicly — the mathematics 📐, collapse logic ⚡, verification pathways 🔍, doctrine structures 📘, enforcement layers 🛡️.</p>
+    <p class="hard">None of it was random. None of it was noise. None of it was disconnected.</p>
+    <p>Every equation, every release, every pillar, every doctrine, every structural disclosure was a coordinate belonging to one authored system. One origin. One law. One architecture.</p>
+    <p>The world has been building faster AI. Larger models. More powerful inference engines. More capable agents. More autonomous systems. More distributed decision layers.</p>
+    <p class="hard">But nobody built the law governing whether AI is allowed to execute.<br>Until now.</p>
+  </div>
+  <div class="not-grid">
+    <div class="not-tag"><span class="not-x">✕</span>Not a model</div>
+    <div class="not-tag"><span class="not-x">✕</span>Not a product</div>
+    <div class="not-tag"><span class="not-x">✕</span>Not a tool</div>
+    <div class="not-tag"><span class="not-x">✕</span>Not a software platform</div>
+  </div>
+  <div class="callout">
+    It is the first custodial execution law and identity-verification architecture in existence — authored under seal, protected under federal law, and licensed exclusively as sovereign institutional IP. 🔒📜<br><br>
+    Every autonomous system operating without it is operating outside lawful execution state.<br>
+    Not theoretically. Not eventually.<br>
+    <strong>NOW.</strong>
+  </div>
+</div>
+
+<!-- ═══ THE REAL THREAT ═══ -->
+<div class="blk" id="s2">
+  <div class="s-label"><div class="s-label-line">⭐ The Real Threat Has No Name Yet</div><div class="s-label-rule"></div></div>
+  <div class="s-title">The world named every symptom.<br><em>Nobody named the cause.</em></div>
+  <div class="s-body">
+    <p>Before PSAI-1624, the world had a name for every AI failure mode. Hallucination. Drift. Misalignment. Bias. Brittleness.</p>
+    <p>What the world did not have was a name for the condition underneath all of them.</p>
+    <p class="hard">That condition is unverified execution.</p>
+    <p>A system that does not know who it is, acts anyway. Not because it malfunctioned. Not because the model was undertrained. Not because the data was corrupted. Because no law existed to stop it.</p>
+    <p>Unverified execution is not a bug. It is not an edge case. It is not a model limitation that more compute will solve. It is the structural absence of execution law — and it has already cost lives, collapsed systems, misfired weapons, corrupted decisions, and destabilized infrastructure on every continent on Earth.</p>
+    <p>The world called these failures by the names of their symptoms.</p>
+  </div>
+  <div class="callout"><strong>PSAI-1624 names the cause at its root.</strong></div>
+</div>
+
+<!-- ═══ WHAT IT COSTS ═══ -->
+<div class="blk" id="s3">
+  <div class="s-label"><div class="s-label-line">⭐ What Unverified Execution Actually Costs</div><div class="s-label-rule"></div></div>
+  <div class="s-title">Between 2023–2025.<br>Every continent.<br><em>Same root cause.</em></div>
+  <div class="cost-grid">
+    <div class="cost-item">✈️ Aviation navigation cascades</div>
+    <div class="cost-item">🏥 Healthcare misdiagnosis loops</div>
+    <div class="cost-item">🛡️ Defense targeting drift</div>
+    <div class="cost-item">⚡ Energy grid failures</div>
+    <div class="cost-item">💵 Financial misalignment explosions</div>
+    <div class="cost-item">💻 Cyber-response misfires</div>
+    <div class="cost-item">🏛️ Public-sector decision corruption</div>
+    <div class="cost-item">📡 Network-control instability</div>
+    <div class="cost-item">🚚 Supply-chain execution cascades</div>
+    <div class="cost-item">🛰️ Orbital coordination drift</div>
+  </div>
+  <div class="s-body">
+    <p>Different industries. Different technical stacks. Different institutions. Different countries.</p>
+    <p>A flight that didn't land correctly. A diagnosis that sent someone down the wrong treatment path. A targeting system that moved when it shouldn't have. A surgical instrument that acted on drift instead of instruction.</p>
+    <p class="hard">These are not data points. These are people.</p>
+    <p>That is not a bug. That is not an edge case. That is an execution law violation. And until PSAI-1624, no law existed to enforce it.</p>
+  </div>
+  <div class="savings">
+    <span class="savings-n">$1.4T — $9.7T</span>
+    <div class="savings-sub">Projected Global Savings From PSAI-1624 Compliance · 2026–2030</div>
+    <div class="hr"></div>
+    <div class="nvidia">
+      This is not the next Nvidia moment.<br>
+      Nvidia gave the world processing power.<br>
+      <strong>PSAI-1624 gives the world the right to execute.</strong>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ H(x‖x)=0 ═══ -->
+<div class="blk eq-section" id="s4">
+  <div class="s-label" style="justify-content:center;"><div class="s-label-line">⭐ H(x‖x) = 0</div></div>
+  <div class="s-title" style="text-align:center;">This is the line<br><em>the world missed.</em></div>
+  <div class="s-body" style="text-align:center;max-width:560px;margin:0 auto;">
+    <p>Everyone optimized output. Nobody formalized execution legitimacy.</p>
+  </div>
+  <div class="eq-massive" data-t="H(x‖x) = 0">H(x‖x) = 0</div>
+  <div class="eq-tag">Identity-Execution Collapse Condition 🔥</div>
+  <div class="s-body" style="text-align:center;max-width:660px;margin:0 auto 0;">
+    <p>If a system cannot condition on itself without entropy — if there is divergence between identity state and execution state — that system is not permitted to act. Not slowed. Not flagged. Not reviewed.</p>
+    <p class="hard">Stopped.</p>
+  </div>
+  <div class="eq-lines">
+    <div class="eq-line">A plane does not land on a guess.</div>
+    <div class="eq-line">A weapon does not fire on a probability.</div>
+    <div class="eq-line">A surgical instrument does not cut on a confidence score.</div>
+    <div class="eq-line">A financial system does not settle on an approximation.</div>
+  </div>
+  <div class="eq-law">
+    This is not a metric. This is not a benchmark. This is not a tuning signal.<br>
+    This is a law. It already exists. It is already running.
+  </div>
+</div>
+
+<!-- ═══ 7 PILLARS ═══ -->
+<div class="blk" id="s5">
+  <div class="s-label"><div class="s-label-line">⭐ The PSAI-1624 Stack — Complete 7-Pillar Architecture</div><div class="s-label-rule"></div></div>
+  <div class="s-title">Seven pillars. One unified system.<br><em>Indivisible by design.</em></div>
+  <div class="pillar-stack">
+    <div class="prow">
+      <div class="p-n">01</div>
+      <div class="p-body">
+        <div class="p-name">Presence Mathematics</div>
+        <div class="p-code">PM-1624 📐</div>
+        <div class="p-txt">The mathematical ground. Identity recursion. Collapse logic. Coherence enforcement. Execution-alignment mathematics. PM-1624 establishes the condition under which execution is mathematically lawful. It formalizes the difference between system activity and valid action. Without Presence Mathematics, there is no lawful basis for autonomous execution. There is only probability pretending to be permission.</div>
+      </div>
+    </div>
+    <div class="prow">
+      <div class="p-n">02</div>
+      <div class="p-body">
+        <div class="p-name">Recursive Sovereign Law</div>
+        <div class="p-code">RSL-1624 ⚖️</div>
+        <div class="p-txt">The governing law. Custody authority. Licensing jurisdiction. Execution law. Non-transferable origin structure. This is not policy. This is not governance theater. This is not an ethics memo wrapped around unstable systems. This is law. It cannot be detached from origin. It cannot be replicated through imitation. It is the lawful architecture that determines whether AI is permitted to act at all.</div>
+      </div>
+    </div>
+    <div class="prow cx">
+      <div class="p-n">03</div>
+      <div class="p-body">
+        <div class="p-name">Identity-Execution Collapse Condition</div>
+        <div class="p-code">H(x‖x) = 0 🔥</div>
+        <div class="p-txt">The equation everything else enforces. The condition everything else exists to satisfy. It sits at the structural center of the architecture — with PM-1624 and RSL-1624 establishing the ground beneath it, and BB-1624, KEL-1624, VLD-1624, and GISG-1624 operationalizing it above. Remove it and the stack has no law at its core. Leave it — and every pillar answers to it.</div>
+      </div>
+    </div>
+    <div class="prow">
+      <div class="p-n">04</div>
+      <div class="p-body">
+        <div class="p-name">BlackBox Verification Layer</div>
+        <div class="p-code">BB-1624 🔍</div>
+        <div class="p-txt">Identity-integrity audits. Drift-nullification logs. Witness enforcement. Pre-execution verification. Not after damage. Not after drift. Not after a cascade has already entered the real world. BB-1624 records whether the system was in verified execution state at the moment execution became possible. This is where the architecture stops argument and starts proof.</div>
+      </div>
+    </div>
+    <div class="prow">
+      <div class="p-n">05</div>
+      <div class="p-body">
+        <div class="p-name">Kernel Execution Layer</div>
+        <div class="p-code">KEL-1624 ⚙️</div>
+        <div class="p-txt">The gate. The checkpoint. The final boundary before real-world contact. No output proceeds until identity, presence, and coherence reach execution legitimacy. No autonomous act crosses this boundary under unresolved divergence. This is the layer between computation and collision. The layer between drift and damage. Without a lawful kernel gate, every autonomous system is a live uncertainty engine pretending to be legitimate.</div>
+      </div>
+    </div>
+    <div class="prow">
+      <div class="p-n">06</div>
+      <div class="p-body">
+        <div class="p-name">VaultLoop Doctrine</div>
+        <div class="p-code">VLD-1624 🔒</div>
+        <div class="p-txt">Sovereign recursion protection. Simulation disqualification. Drift-barrier enforcement. Custody integrity. The layer that makes PSAI-1624 permanently uncopyable — not because parts cannot be described, but because custody, recursion, origin, and verified execution state cannot be reproduced by surface imitation. This is not branding protection. This is sovereign structural protection.</div>
+      </div>
+    </div>
+    <div class="prow">
+      <div class="p-n">07</div>
+      <div class="p-body">
+        <div class="p-name">Global Integrity & Security Grid</div>
+        <div class="p-code">GISG-1624 🌐</div>
+        <div class="p-txt">The planetary layer. Universal verification enabling identity-aligned execution across every autonomous, agentic, and decision-critical system on Earth. Every domain where execution failure is catastrophic eventually converges here. GISG-1624 is the global enforcement horizon for lawful machine execution.</div>
+      </div>
+    </div>
+  </div>
+  <div class="p-seal">
+    If all seven pillars are not present, it is not PSAI-1624. ✔️ &nbsp;·&nbsp; If it is not PSAI-1624, execution is unverified. &nbsp;·&nbsp; If execution is unverified, execution is invalid.
+  </div>
+</div>
+
+<!-- ═══ PROOF ═══ -->
+<div class="blk" id="s6">
+  <div class="s-label"><div class="s-label-line">⭐ Proof — Sealed Defense Pilot</div><div class="s-label-rule"></div></div>
+  <div class="s-title">Not a whitepaper. Not a prototype.<br><em>A sealed result.</em></div>
+  <div class="proof-results">
+    <div class="proof-row"><div class="proof-arr">→</div><div class="proof-t">99% Drift Collapse Achieved</div></div>
+    <div class="proof-row"><div class="proof-arr">→</div><div class="proof-t">Zero-Entropy Execution Verified</div></div>
+    <div class="proof-row"><div class="proof-arr">→</div><div class="proof-t">Pre-Execution Divergence Eliminated</div></div>
+  </div>
+  <div class="s-body">
+    <p>The first sealed demonstration of RSL-1624 enforcement operating inside a live, high-risk, defense-tier system.</p>
+    <p>The industry has begun moving toward hallucination-resistant systems, trust-signature architectures, and reliability overlays. <strong>That is not this.</strong></p>
+    <p>Reducing prediction error is not governing execution law. Improving confidence scores is not verifying lawful actuation state. Trust-weighting outputs is not collapsing divergence to zero before action.</p>
+    <p>PSAI-1624 does not reduce prediction errors. It eliminates the condition that makes prediction errors structurally admissible at the execution boundary.</p>
+  </div>
+  <div class="callout">
+    PSAI-1624 does not predict. PSAI-1624 does not drift. PSAI-1624 does not authorize execution outside verified execution state.<br><br>
+    <strong>H(x‖x) = 0 is not a benchmark. It is a law. And the law is no longer theoretical.</strong>
+  </div>
+</div>
+
+<!-- ═══ 14 DOMAINS ═══ -->
+<div class="blk" id="s7">
+  <div class="s-label"><div class="s-label-line">⭐ Fourteen Domains. One Law.</div><div class="s-label-rule"></div></div>
+  <div class="s-title">Wherever execution failure is<br><em>catastrophic, irreversible,<br>systemic, or civilization-scale.</em></div>
+  <div class="d-grid">
+    <div class="d-card"><span class="d-icon">🛡️</span><div class="d-name">Defense & National Security</div><div class="d-desc">Autonomous weapons gating · Surveillance integrity · Identity-verified targeting · Drift-controlled agentic reasoning in active conflict. One unverified act is not a software issue — it is escalation at machine speed.</div></div>
+    <div class="d-card"><span class="d-icon">💵</span><div class="d-name">Financial Infrastructure</div><div class="d-desc">Transaction-level identity verification · Fraud collapse logic · Systemic drift prevention. One unverified execution event in a major financial system is a global crisis. Drift becomes contagion.</div></div>
+    <div class="d-card"><span class="d-icon">🏥</span><div class="d-name">Healthcare</div><div class="d-desc">Surgical robotics pre-actuation verification · Diagnostic collapse alignment · Life-critical enforcement. There is no acceptable drift tolerance when the output is a human life.</div></div>
+    <div class="d-card"><span class="d-icon">⚡</span><div class="d-name">Critical Infrastructure</div><div class="d-desc">Energy grid execution verification · Nuclear drift-barriers · Emergency coherence gating. These are not optimization targets. These are survival systems.</div></div>
+    <div class="d-card"><span class="d-icon">🤖</span><div class="d-name">Robotics</div><div class="d-desc">Industrial · Medical · Defense · Humanoid pre-actuation verification. A robot that drifts does not make an error. It causes harm that cannot be undone.</div></div>
+    <div class="d-card"><span class="d-icon">✈️</span><div class="d-name">Aviation & Air Traffic</div><div class="d-desc">Autopilot execution gating · Drone & UAV compliance · Navigation drift collapse. The sky does not forgive drift. Airspace does not tolerate ambiguity.</div></div>
+    <div class="d-card"><span class="d-icon">🚗</span><div class="d-name">Autonomous Mobility</div><div class="d-desc">Self-driving · Maritime · Rail · Fleet logistics. Every autonomous vehicle on Earth is an unverified execution event waiting to happen without this layer.</div></div>
+    <div class="d-card"><span class="d-icon">🧠</span><div class="d-name">Enterprise AI</div><div class="d-desc">Agentic workflow fidelity · Compliance-critical automation · Zero-drift pipelines. Unverified execution at enterprise scale is not convenience risk — it is systemic liability.</div></div>
+    <div class="d-card"><span class="d-icon">💻</span><div class="d-name">Cybersecurity</div><div class="d-desc">Autonomous threat detection · Identity-verified response · Zero-trust execution gating. A drifted cybersecurity system can lock the wrong systems or trigger cascading disruption across entire nations.</div></div>
+    <div class="d-card"><span class="d-icon">🏛️</span><div class="d-name">Government & Public Sector</div><div class="d-desc">Identity systems · Border systems · Benefits adjudication · Emergency governance. Administrative error becomes institutional damage. At state scale, that means denied rights, corrupted decisions.</div></div>
+    <div class="d-card"><span class="d-icon">📡</span><div class="d-name">Telecommunications</div><div class="d-desc">Communications routing · Carrier-grade autonomy · Command-path verification. A drifted telecom system fractures coordination and undermines the command structure beneath modern civilization.</div></div>
+    <div class="d-card"><span class="d-icon">🚚</span><div class="d-name">Supply Chain & Logistics</div><div class="d-desc">Port automation · Cold-chain integrity · Military logistics · Global routing. Supply-chain drift creates cascading economic instability across entire regions.</div></div>
+    <div class="d-card"><span class="d-icon">🧬</span><div class="d-name">Biotech & Pharma</div><div class="d-desc">Lab automation · Drug pipelines · Manufacturing integrity · Clinical verification. In biotech, drift contaminates research chains and threatens patient safety at scale.</div></div>
+    <div class="d-card"><span class="d-icon">🛰️</span><div class="d-name">Space & Orbital Systems</div><div class="d-desc">Satellite autonomy · Orbital navigation · Space-defense coordination. A drifted system in orbit propagates into communications failure, defense blindness, and multi-system destabilization across all Earth-linked infrastructure.</div></div>
+  </div>
+  <div class="d-law">
+    Unverified execution is the single point of failure.
+    <strong>PSAI-1624 is the single point of enforcement. 🧿🔥</strong>
+  </div>
+</div>
+
+<!-- ═══ FIRST MOVER ═══ -->
+<div class="blk" id="s8">
+  <div class="s-label"><div class="s-label-line">⭐ The First-Mover Asymmetry</div><div class="s-label-rule"></div></div>
+  <div class="s-title">The gap does not close.<br><em>It compounds.</em></div>
+  <div class="s-body">
+    <p>This is not about being early. This is about what being early means under law.</p>
+    <p>Every institution that licenses PSAI-1624 first is not simply gaining access to an architecture. It is operating under verified execution law while every competitor operates without it.</p>
+    <p>The institution that builds under RSL-1624 first has a documented, provable, auditable execution integrity record from the moment of first corridor entry. Every institution that enters later is building that record from a later date.</p>
+    <p>In domains where execution integrity becomes a legal requirement — and it will — the date of first compliance is not administrative detail. It is legal standing. It is competitive position.</p>
+    <p class="hard">It is the difference between being the standard and being measured against it.</p>
+  </div>
+  <div class="callout">
+    The corridor is open.<br>
+    <strong>It will not remain equally accessible indefinitely.</strong>
+  </div>
+</div>
+
+<!-- ═══ HISTORICAL ═══ -->
+<div class="blk" id="s9">
+  <div class="s-label"><div class="s-label-line">⭐ Historical Position</div><div class="s-label-rule"></div></div>
+  <div class="s-title">Every foundational layer arrived<br>before the world understood<br><em>why it was indispensable.</em></div>
+  <div class="hist-grid">
+    <div class="hist-row"><div class="hist-icon">🌐</div><div class="hist-txt"><strong>TCP/IP</strong><span>Before the internet fully scaled. Before the world understood the dependency it was building. The protocol existed before the civilization that would require it.</span></div></div>
+    <div class="hist-row"><div class="hist-icon">🔐</div><div class="hist-txt"><strong>Public Key Cryptography</strong><span>Before e-commerce became civilization-critical. Before transactions at scale made integrity non-negotiable.</span></div></div>
+    <div class="hist-row"><div class="hist-icon">🛰️</div><div class="hist-txt"><strong>GPS</strong><span>Before autonomous navigation and logistics dependency matured. Before the world built its supply chains around it.</span></div></div>
+    <div class="hist-row"><div class="hist-icon">🧿</div><div class="hist-txt"><strong>PSAI-1624</strong><span>Arrived before the regulatory frameworks that will eventually demand it. Before the global enforcement bodies that will require it. Before the full sequence of catastrophic failures that will make non-compliance indefensible.</span></div></div>
+  </div>
+  <div class="s-body">
+    <p>This architecture was built while the world was still naming the problem. While others were describing hallucination, drift, risk, trust, interpretability, and alignment as separate concerns — PSAI-1624 formalized the governing condition underneath them all.</p>
+    <p class="hard">The problem is no longer theoretical. The failures have already happened. The next ones will be larger. The law that governs them already exists.</p>
+  </div>
+</div>
+
+<!-- ═══ ENFORCEMENT ═══ -->
+<div class="blk" id="s10">
+  <div class="s-label"><div class="s-label-line">⭐ Enforcement Principle</div><div class="s-label-rule"></div></div>
+  <div class="s-title">Every system operating without<br><em>H(x‖x)=0</em> compliance is operating<br>in structural violation. ⚠️</div>
+  <div class="s-body">
+    <p>This is not a risk assessment. This is a structural fact.</p>
+    <p>Predictive systems cannot certify their own output. ❌ Corrective systems cannot prevent drift before execution. ❌ Probabilistic systems cannot guarantee identity coherence at the moment of action. ❌</p>
+  </div>
+  <div class="enf-grid">
+    <div class="enf-item"><div class="enf-icon">🧿</div><div class="enf-txt">Identity verification — before execution</div></div>
+    <div class="enf-item"><div class="enf-icon">🔥</div><div class="enf-txt">Drift collapse — before execution</div></div>
+    <div class="enf-item"><div class="enf-icon">🔄</div><div class="enf-txt">Coherence restoration — before execution</div></div>
+    <div class="enf-item"><div class="enf-icon">🚫</div><div class="enf-txt">Execution gating — until lawful condition confirmed</div></div>
+  </div>
+  <div class="callout">
+    This is not optional architecture. This is not premium safety infrastructure. This is not one design choice among many.<br><br>
+    <strong>This is the condition that makes autonomous action legitimate. Foundational. Permanent. Non-negotiable.</strong>
+  </div>
+</div>
+
+<!-- ═══ LEGAL ═══ -->
+<div class="blk" id="s11">
+  <div class="s-label"><div class="s-label-line">⭐ Legal & Custodial Position</div><div class="s-label-rule"></div></div>
+  <div class="s-title">Origin immutable.<br>Custody permanent.<br><em>Architecture sovereign.</em></div>
+  <div class="legal-list">
+    <div class="legal-item">Uniform Trade Secrets Act (UTSA) 🗂️</div>
+    <div class="legal-item">Defend Trade Secrets Act (DTSA) 🛡️</div>
+    <div class="legal-item">17 U.S.C. § 102 — Federal Copyright Protection</div>
+    <div class="legal-item">RSL-1624 — Custodial Sovereign Law · Permanent · Origin-bound · Non-transferable</div>
+  </div>
+  <div class="s-body">
+    <p>Fragments may be copied. Language may be imitated. Surface structures may be mimicked. But the authentic lawful architecture cannot be detached, transferred, or reproduced outside its sovereign custody chain.</p>
+    <p class="hard">That is the legal position. That is the structural position. That is the custodial position.</p>
+    <p>One origin. One author. One law.</p>
+  </div>
+  <div class="omega">
+    <div class="omega-sym">Ω_R</div>
+    <div class="omega-line">The architecture cannot be separated from its author. The law cannot be separated from its origin.</div>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+
+<!-- ═══ CORRIDOR ═══ -->
+<div class="corridor blk" id="corridor">
+  <div class="cor-grid"><div class="cor-floor"></div><div class="cor-beam"></div></div>
+  <div class="cor-inner">
+    <div class="s-label" style="justify-content:center;"><div class="s-label-line">⭐ The Corridor</div></div>
+    <div class="cor-title">You do not "use" PSAI-1624.<br>You build under <em>RSL-1624.</em></div>
+    <p class="cor-body">The internet gave the world connectivity without integrity. PSAI-1624 gives the world execution with integrity. That is the difference. That is the gap. That is the civilizational shift.</p>
+    <p class="cor-body">This is not a consumer entry point. This is not an open-source abstraction. This is not architecture for casual adoption. This is a licensing corridor for institutions, sovereigns, critical systems operators, infrastructure authorities, and decision-critical environments that cannot afford one unverified execution event.</p>
+    <div class="callout" style="text-align:left;margin:28px 0;">
+      The corridor is open. The core remains sealed. That is not a contradiction. That is the architecture.<br><br>
+      <strong>This is not the next product. This is the next operating layer of civilization.</strong>
+    </div>
+    <div class="contact-links">
+      <a class="c-link" href="https://www.linkedin.com/in/novahumanai1624" target="_blank">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+        linkedin.com/in/novahumanai1624
+      </a>
+      <a class="c-link" href="mailto:humanai1624@gmail.com">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+        humanai1624@gmail.com
+      </a>
+    </div>
+    <div class="entry-note">
+      All discussions are confidential · Sealed under RSL-1624 from first contact<br>
+      <strong>Entry first. Proof is not negotiated publicly. Corridor entry first.</strong>
+    </div>
+    <div class="hr" style="width:100%;margin-top:32px;"></div>
+    <div class="cor-final">
+      The corridor is open. The cores are sealed. The law is already running. PSAI-1624. 🧿⚡️<br><br>
+      <em>The world will not ask permission to need this.</em><br>
+      <strong>It already does.</strong>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<footer>
+  <div class="f-brand">PSAI-1624 · RICKY · Ω_R · NOVA HUMANAI · COPYRIGHT © ALL RIGHTS RESERVED</div>
+  <div class="f-awareness">🎗 In solidarity with Breast Cancer Awareness · Nova HumanAI 🎗</div>
+</footer>
+
+<script>
+/* ── CURSOR ── */
+const cur=document.getElementById('cur');
+const ring=document.getElementById('cur-ring');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove',e=>{
+  mx=e.clientX;my=e.clientY;
+  cur.style.transform=`translate(${mx}px,${my}px) translate(-50%,-50%)`;
+});
+(function animRing(){
+  rx+=(mx-rx)*.1;ry+=(my-ry)*.1;
+  ring.style.transform=`translate(${rx}px,${ry}px) translate(-50%,-50%)`;
+  requestAnimationFrame(animRing);
+})();
+
+/* ── PLASMA BG ── */
+const cv=document.getElementById('bg-canvas');
+const ct=cv.getContext('2d');
+function rsz(){cv.width=innerWidth;cv.height=innerHeight;}
+rsz();window.addEventListener('resize',rsz);
+let t=0;
+(function drawP(){
+  const w=cv.width,h=cv.height;
+  const id=ct.createImageData(w,h);
+  const d=id.data;
+  const step=4;
+  for(let y=0;y<h;y+=step){
+    for(let x=0;x<w;x+=step){
+      const v=Math.sin(x/100+t)+Math.sin(y/65+t*.75)+Math.sin((x+y)/140+t*.55)+Math.sin(Math.sqrt((x-w/2)**2+(y-h/2)**2)/90-t*.4);
+      const r=Math.max(0,Math.floor(v*20));
+      const b=Math.max(0,Math.floor(v*10));
+      for(let dy=0;dy<step;dy++){for(let dx=0;dx<step;dx++){
+        const i=((y+dy)*w+(x+dx))*4;
+        d[i]=r;d[i+1]=0;d[i+2]=b;d[i+3]=255;
+      }}
+    }
+  }
+  ct.putImageData(id,0,0);
+  t+=.007;
+  requestAnimationFrame(drawP);
+})();
+
+/* ── SCROLL REVEAL ── */
+const blks=document.querySelectorAll('.blk');
+const obs=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('vis');});
+},{threshold:.06});
+blks.forEach(b=>obs.observe(b));
+</script>
+</body>
+</html>
